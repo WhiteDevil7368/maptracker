@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DIGIM - Live Tracking Route Demo</title>
+    <title>DIGIM - Hardware Only GPS Tracking</title>
     
     <!-- Leaflet.js Base Framework -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -40,7 +40,7 @@
             font-size: 28px;
             text-align: center;
             line-height: 1;
-            transition: all 0.5s linear; 
+            transition: all 0.4s ease-out; 
             filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.4));
         }
     </style>
@@ -53,18 +53,17 @@
         <h2>DIGIM Proximity Engine</h2>
         
         <div class="role-selector">
-            <button id="btn-student" class="role-btn active" onclick="setRole('student')">I am Student</button>
-            <button id="btn-driver" class="role-btn" onclick="setRole('driver')">I am Driver</button>
+            <button id="btn-student" class="role-btn" onclick="setRole('student')">I am Student</button>
+            <button id="btn-driver" class="role-btn active" onclick="setRole('driver')">I am Driver</button>
         </div>
 
         <div class="status-box">
-            <div><span class="label">Current Mode:</span> <span id="lbl-role" style="text-transform:uppercase; font-weight:bold; color:green;">Student View</span></div>
-            <div><span class="label">Driver Distance:</span> <span id="lbl-dist" class="value">Waiting...</span></div>
+            <div><span class="label">Current Mode:</span> <span id="lbl-role" style="text-transform:uppercase; font-weight:bold; color:#e0a800;">Driver Broadcast</span></div>
+            <div><span class="label">Your Distance to Home:</span> <span id="lbl-dist" class="value">Waiting for GPS...</span></div>
             <div><span class="label">Status:</span> <span id="lbl-status" class="value">Idle</span></div>
         </div>
 
         <button id="action-btn" class="btn" onclick="toggleTracking()">START REAL GPS BROADCAST</button>
-        <button id="sim-btn" class="btn" style="background:#b300af;" onclick="startSimulation()">SIMULATE MOVING BUS</button>
         <button id="alarm-btn" class="btn btn-danger" onclick="stopAlarm()">🔔 TURN OFF ALARM 🔔</button>
     </div>
 
@@ -72,13 +71,12 @@
     <script>
         const homeLat = 17.694125;
         const homeLng = 83.171441;
-        let currentRole = 'student';
+        let currentRole = 'driver';
         let isTracking = false;
         let watchId = null;
         let audioCtx = null;
         let alarmInterval = null;
         let routeLine = null;
-        let simInterval = null;
 
         // Initialize Map
         const map = L.map('map', { maxZoom: 19 }).setView([homeLat, homeLng], 16);
@@ -88,7 +86,7 @@
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png', { pane: 'shadowPane' }).addTo(map);
 
         const homeIcon = L.divIcon({ className: 'home-pulse', iconSize: [18, 18] });
-        L.marker([homeLat, homeLng], { icon: homeIcon }).addTo(map).bindPopup("<b>Student's Home Point</b>").openPopup();
+        L.marker([homeLat, homeLng], { icon: homeIcon }).addTo(map).bindPopup("<b>Target Home Point</b>").openPopup();
 
         const busIcon = L.divIcon({ html: '🚌', className: 'bus-emoji-container', iconSize: [30, 30], iconAnchor: [15, 15] });
         let driverMarker = L.marker([0, 0], { icon: busIcon });
@@ -97,51 +95,29 @@
             currentRole = role;
             document.getElementById('btn-student').classList.toggle('active', role === 'student');
             document.getElementById('btn-driver').classList.toggle('active', role === 'driver');
-            document.getElementById('lbl-role').innerText = role === 'student' ? 'Student View' : 'Driver Broadcast';
-            document.getElementById('lbl-role').style.color = role === 'student' ? 'green' : '#e0a800';
             
-            // Clean interface toggles
-            stopTracking();
-            if(simInterval) clearInterval(simInterval);
-
-            if(role === 'driver') {
-                document.getElementById('action-btn').style.display = "block";
-                document.getElementById('sim-btn').style.display = "none";
-            } else {
+            if(role === 'student') {
+                document.getElementById('lbl-role').innerText = 'Student View (Awaiting Server Backend)';
+                document.getElementById('lbl-role').style.color = 'green';
                 document.getElementById('action-btn').style.display = "none";
-                document.getElementById('sim-btn').style.display = "block";
+                document.getElementById('lbl-status').innerText = "To test real GPS tracking on a single phone, switch back to Driver Mode.";
+                if(isTracking) stopTracking();
+            } else {
+                document.getElementById('lbl-role').innerText = 'Driver Broadcast';
+                document.getElementById('lbl-role').style.color = '#e0a800';
+                document.getElementById('action-btn').style.display = "block";
+                document.getElementById('lbl-status').innerText = "Ready to test hardware GPS chip.";
             }
         }
 
-        // Initialize view state
-        setRole('student');
-
-        // --- SIMULATION ENGINE FOR THE STUDENT VIEW ---
-        function startSimulation() {
-            if(simInterval) clearInterval(simInterval);
-            document.getElementById('lbl-status').innerText = "Simulating bus movement towards home...";
-            
-            // Start the bus roughly 400 meters away from your home coordinate
-            let simLat = 17.691500;
-            let simLng = 83.174000;
-
-            simInterval = setInterval(() => {
-                // Step closer to home step-by-step
-                simLat += (homeLat - simLat) * 0.1;
-                simLng += (homeLng - simLng) * 0.1;
-
-                updateMapGraphics(simLat, simLng);
-            }, 1000);
-        }
-
-        // --- REAL LIVE GPS HARDWARE FOR THE DRIVER VIEW ---
+        // Real Phone GPS Hardware Controller
         function toggleTracking() {
             if (!isTracking) {
-                if (!navigator.geolocation) return alert("GPS features unavailable on your browser.");
+                if (!navigator.geolocation) return alert("GPS hardware not accessible.");
                 isTracking = true;
                 document.getElementById('action-btn').innerText = "STOP TRANSMITTING LOCATION";
                 document.getElementById('action-btn').style.background = "#dc3545";
-                document.getElementById('lbl-status').innerText = "Broadcasting GPS data...";
+                document.getElementById('lbl-status').innerText = "Reading live phone coordinates...";
 
                 watchId = navigator.geolocation.watchPosition((pos) => {
                     updateMapGraphics(pos.coords.latitude, pos.coords.longitude);
@@ -161,21 +137,24 @@
             if (map.hasLayer(driverMarker)) map.removeLayer(driverMarker);
         }
 
-        // --- SHARED CORE RENDER LOGIC ---
         function updateMapGraphics(lat, lng) {
             if (!map.hasLayer(driverMarker)) driverMarker.addTo(map);
             driverMarker.setLatLng([lat, lng]);
 
+            // Track real line straight to target home coordinates
             if (routeLine) map.removeLayer(routeLine);
             routeLine = L.polyline([[lat, lng], [homeLat, homeLng]], {
-                color: '#d9534f', weight: 5, opacity: 0.85, dashArray: '10, 10', lineJoin: 'round'
+                color: '#d9534f', weight: 5, opacity: 0.85, dashArray: '10, 10'
             }).addTo(map);
+
+            // Dynamically fit view to show both points clearly
+            const group = new L.featureGroup([L.marker([lat, lng]), L.marker([homeLat, homeLng])]);
+            map.fitBounds(group.getBounds().pad(0.2));
 
             const distance = calculateDistance(lat, lng, homeLat, homeLng);
             document.getElementById('lbl-dist').innerText = `${Math.round(distance)} meters away`;
 
-            if (distance <= 45) { 
-                if(simInterval) clearInterval(simInterval);
+            if (distance <= 50) { 
                 triggerProximityAlarm();
             }
         }
@@ -190,7 +169,7 @@
 
         function triggerProximityAlarm() {
             if (alarmInterval) return; 
-            document.getElementById('lbl-status').innerText = "BUS ARRIVED! ALARM ACTIVE!";
+            document.getElementById('lbl-status').innerText = "YOU HAVE ARRIVED! ALARM ACTIVE!";
             document.getElementById('lbl-status').style.color = "red";
             document.getElementById('alarm-btn').style.display = "block";
 
@@ -208,10 +187,10 @@
             if (alarmInterval) { clearInterval(alarmInterval); alarmInterval = null; }
             if (audioCtx) { audioCtx.close(); audioCtx = null; }
             document.getElementById('alarm-btn').style.display = "none";
-            setRole('student');
+            stopTracking();
         }
 
-        function handleGPSError(err) { document.getElementById('lbl-status').innerText = `GPS Error Code (${err.code})`; }
+        function handleGPSError(err) { document.getElementById('lbl-status').innerText = `GPS Error (${err.code})`; }
     </script>
 </body>
 </html>
