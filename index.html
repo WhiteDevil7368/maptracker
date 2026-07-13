@@ -34,15 +34,13 @@
         @keyframes flash { from { background: #dc3545; } to { background: #ffc107; color: black; } }
         @keyframes pulse { 0% { transform: scale(0.6); opacity: 0.5; } 70% { transform: scale(1.2); opacity: 0.9; } 100% { transform: scale(0.6); opacity: 0.5; } }
         
-        /* Pulse for the Home Target Location */
         .home-pulse { background: #0056b3; border: 2px solid white; border-radius: 50%; animation: pulse 2.5s infinite ease-in-out; }
         
-        /* Styles for the Moving Bus Emoji Custom Icon Container */
         .bus-emoji-container {
             font-size: 28px;
             text-align: center;
             line-height: 1;
-            transition: all 0.3s ease-out; /* Makes the bus move smoothly between GPS jumps */
+            transition: all 0.5s linear; 
             filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.4));
         }
     </style>
@@ -61,17 +59,17 @@
 
         <div class="status-box">
             <div><span class="label">Current Mode:</span> <span id="lbl-role" style="text-transform:uppercase; font-weight:bold; color:green;">Student View</span></div>
-            <div><span class="label">Driver Distance:</span> <span id="lbl-dist" class="value">Waiting for GPS...</span></div>
+            <div><span class="label">Driver Distance:</span> <span id="lbl-dist" class="value">Waiting...</span></div>
             <div><span class="label">Status:</span> <span id="lbl-status" class="value">Idle</span></div>
         </div>
 
-        <button id="action-btn" class="btn" onclick="toggleTracking()">START TRANSMITTING LOCATION</button>
+        <button id="action-btn" class="btn" onclick="toggleTracking()">START REAL GPS BROADCAST</button>
+        <button id="sim-btn" class="btn" style="background:#b300af;" onclick="startSimulation()">SIMULATE MOVING BUS</button>
         <button id="alarm-btn" class="btn btn-danger" onclick="stopAlarm()">🔔 TURN OFF ALARM 🔔</button>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Set up target coordinates
         const homeLat = 17.694125;
         const homeLng = 83.171441;
         let currentRole = 'student';
@@ -79,29 +77,20 @@
         let watchId = null;
         let audioCtx = null;
         let alarmInterval = null;
-        
-        // Polyline Route Tracker Variables
         let routeLine = null;
+        let simInterval = null;
 
         // Initialize Map
-        const map = L.map('map', { maxZoom: 19 }).setView([homeLat, homeLng], 17);
+        const map = L.map('map', { maxZoom: 19 }).setView([homeLat, homeLng], 16);
         map.zoomControl.setPosition('topright');
 
-        // Satellite Basemap Layers
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' }).addTo(map);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png', { pane: 'shadowPane' }).addTo(map);
 
-        // Home Icon Setup
         const homeIcon = L.divIcon({ className: 'home-pulse', iconSize: [18, 18] });
-        L.marker([homeLat, homeLng], { icon: homeIcon }).addTo(map).bindPopup("<b>Target Destination Home Point</b>").openPopup();
+        L.marker([homeLat, homeLng], { icon: homeIcon }).addTo(map).bindPopup("<b>Student's Home Point</b>").openPopup();
 
-        // 🚌 Moving Bus Emoji Custom Marker Definition
-        const busIcon = L.divIcon({ 
-            html: '🚌', 
-            className: 'bus-emoji-container', 
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
-        });
+        const busIcon = L.divIcon({ html: '🚌', className: 'bus-emoji-container', iconSize: [30, 30], iconAnchor: [15, 15] });
         let driverMarker = L.marker([0, 0], { icon: busIcon });
 
         function setRole(role) {
@@ -111,27 +100,52 @@
             document.getElementById('lbl-role').innerText = role === 'student' ? 'Student View' : 'Driver Broadcast';
             document.getElementById('lbl-role').style.color = role === 'student' ? 'green' : '#e0a800';
             
+            // Clean interface toggles
+            stopTracking();
+            if(simInterval) clearInterval(simInterval);
+
             if(role === 'driver') {
                 document.getElementById('action-btn').style.display = "block";
+                document.getElementById('sim-btn').style.display = "none";
             } else {
                 document.getElementById('action-btn').style.display = "none";
+                document.getElementById('sim-btn').style.display = "block";
             }
         }
+
+        // Initialize view state
         setRole('student');
 
+        // --- SIMULATION ENGINE FOR THE STUDENT VIEW ---
+        function startSimulation() {
+            if(simInterval) clearInterval(simInterval);
+            document.getElementById('lbl-status').innerText = "Simulating bus movement towards home...";
+            
+            // Start the bus roughly 400 meters away from your home coordinate
+            let simLat = 17.691500;
+            let simLng = 83.174000;
+
+            simInterval = setInterval(() => {
+                // Step closer to home step-by-step
+                simLat += (homeLat - simLat) * 0.1;
+                simLng += (homeLng - simLng) * 0.1;
+
+                updateMapGraphics(simLat, simLng);
+            }, 1000);
+        }
+
+        // --- REAL LIVE GPS HARDWARE FOR THE DRIVER VIEW ---
         function toggleTracking() {
             if (!isTracking) {
                 if (!navigator.geolocation) return alert("GPS features unavailable on your browser.");
-                
                 isTracking = true;
                 document.getElementById('action-btn').innerText = "STOP TRANSMITTING LOCATION";
                 document.getElementById('action-btn').style.background = "#dc3545";
                 document.getElementById('lbl-status').innerText = "Broadcasting GPS data...";
 
-                watchId = navigator.geolocation.watchPosition(processGPSUpdate, handleGPSError, {
-                    enableHighAccuracy: true,
-                    maximumAge: 0
-                });
+                watchId = navigator.geolocation.watchPosition((pos) => {
+                    updateMapGraphics(pos.coords.latitude, pos.coords.longitude);
+                }, handleGPSError, { enableHighAccuracy: true, maximumAge: 0 });
             } else {
                 stopTracking();
             }
@@ -140,107 +154,64 @@
         function stopTracking() {
             if (watchId) navigator.geolocation.clearWatch(watchId);
             isTracking = false;
-            document.getElementById('action-btn').innerText = "START TRANSMITTING LOCATION";
+            document.getElementById('action-btn').innerText = "START REAL GPS BROADCAST";
             document.getElementById('action-btn').style.background = "#28a745";
             document.getElementById('lbl-status').innerText = "Idle";
-            
-            // Clean up lines when tracking ends
-            if (routeLine) {
-                map.removeLayer(routeLine);
-                routeLine = null;
-            }
+            if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+            if (map.hasLayer(driverMarker)) map.removeLayer(driverMarker);
         }
 
-        function processGPSUpdate(position) {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-
-            // 1. Draw/Update the Animated Bus Marker
+        // --- SHARED CORE RENDER LOGIC ---
+        function updateMapGraphics(lat, lng) {
             if (!map.hasLayer(driverMarker)) driverMarker.addTo(map);
             driverMarker.setLatLng([lat, lng]);
-            
-            // Center viewport camera based on who is viewing
-            if (currentRole === 'driver') {
-                map.setView([lat, lng], 18);
-            }
 
-            // 2. DYNAMIC ROAD MAP LINE TRACKING
-            // Remove previous path layer to draw the fresh real-time vector path line
             if (routeLine) map.removeLayer(routeLine);
-
-            const pathCoordinates = [
-                [lat, lng],        // Starting Point: Driver Location
-                [homeLat, homeLng] // Endpoint: Target Home Node
-            ];
-
-            // Render highly visible crimson dash line directly between the nodes
-            routeLine = L.polyline(pathCoordinates, {
-                color: '#d9534f',
-                weight: 5,
-                opacity: 0.85,
-                dashArray: '10, 10', // Creates an tracking animated look
-                lineJoin: 'round'
+            routeLine = L.polyline([[lat, lng], [homeLat, homeLng]], {
+                color: '#d9534f', weight: 5, opacity: 0.85, dashArray: '10, 10', lineJoin: 'round'
             }).addTo(map);
 
-            // Calculate distance remaining
             const distance = calculateDistance(lat, lng, homeLat, homeLng);
             document.getElementById('lbl-dist').innerText = `${Math.round(distance)} meters away`;
 
-            // 3. Proximity Guard Check Trigger
-            if (distance <= 50) { 
+            if (distance <= 45) { 
+                if(simInterval) clearInterval(simInterval);
                 triggerProximityAlarm();
             }
         }
 
         function calculateDistance(lat1, lon1, lat2, lon2) {
             const R = 6371e3; 
-            const phi1 = lat1 * Math.PI/180;
-            const phi2 = lat2 * Math.PI/180;
-            const deltaPhi = (lat2-lat1) * Math.PI/180;
-            const deltaLambda = (lon2-lon1) * Math.PI/180;
+            const phi1 = lat1 * Math.PI/180; const phi2 = lat2 * Math.PI/180;
+            const deltaPhi = (lat2-lat1) * Math.PI/180; const deltaLambda = (lon2-lon1) * Math.PI/180;
             const a = Math.sin(deltaPhi/2) * Math.sin(deltaPhi/2) + Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda/2) * Math.sin(deltaLambda/2);
             return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
         }
 
         function triggerProximityAlarm() {
             if (alarmInterval) return; 
-            
-            document.getElementById('lbl-status').innerText = "ARRIVED AT HOME! ALARM ACTIVATED!";
+            document.getElementById('lbl-status').innerText = "BUS ARRIVED! ALARM ACTIVE!";
             document.getElementById('lbl-status').style.color = "red";
             document.getElementById('alarm-btn').style.display = "block";
 
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             alarmInterval = setInterval(() => {
-                let osc = audioCtx.createOscillator();
-                let gain = audioCtx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
+                let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
+                osc.type = 'sine'; osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
                 gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.15); 
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.15); 
             }, 300);
         }
 
         function stopAlarm() {
-            if (alarmInterval) {
-                clearInterval(alarmInterval);
-                alarmInterval = null;
-            }
-            if (audioCtx) {
-                audioCtx.close();
-                audioCtx = null;
-            }
+            if (alarmInterval) { clearInterval(alarmInterval); alarmInterval = null; }
+            if (audioCtx) { audioCtx.close(); audioCtx = null; }
             document.getElementById('alarm-btn').style.display = "none";
-            document.getElementById('lbl-status').innerText = "Alarm acknowledged and closed.";
-            document.getElementById('lbl-status').style.color = "black";
-            stopTracking();
+            setRole('student');
         }
 
-        function handleGPSError(err) {
-            document.getElementById('lbl-status').innerText = `GPS Error Code (${err.code})`;
-        }
+        function handleGPSError(err) { document.getElementById('lbl-status').innerText = `GPS Error Code (${err.code})`; }
     </script>
 </body>
 </html>
