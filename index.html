@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DIGIM - Real Multi-Device Live Tracking</title>
+    <title>DIGIM - Real-Time Multi-Device Tracking</title>
     
     <!-- Leaflet.js Base Framework -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -37,11 +37,11 @@
         .home-pulse { background: #0056b3; border: 2px solid white; border-radius: 50%; animation: pulse 2.5s infinite ease-in-out; }
         
         .bus-emoji-container {
-            font-size: 28px;
+            font-size: 32px;
             text-align: center;
             line-height: 1;
-            transition: all 0.5s linear; 
-            filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.4));
+            transition: transform 0.3s linear, left 0.3s linear, top 0.3s linear; 
+            filter: drop-shadow(0px 3px 6px rgba(0,0,0,0.4));
         }
     </style>
 </head>
@@ -84,7 +84,7 @@
         let routeLine = null;
 
         // Initialize Map
-        const map = L.map('map', { maxZoom: 19 }).setView([homeLat, homeLng], 16);
+        const map = L.map('map', { maxZoom: 19 }).setView([homeLat, homeLng], 15);
         map.zoomControl.setPosition('topright');
 
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' }).addTo(map);
@@ -93,10 +93,10 @@
         const homeIcon = L.divIcon({ className: 'home-pulse', iconSize: [18, 18] });
         L.marker([homeLat, homeLng], { icon: homeIcon }).addTo(map).bindPopup("<b>Student Home Point</b>").openPopup();
 
-        const busIcon = L.divIcon({ html: '🚌', className: 'bus-emoji-container', iconSize: [30, 30], iconAnchor: [15, 15] });
+        const busIcon = L.divIcon({ html: '🚌', className: 'bus-emoji-container', iconSize: [32, 32], iconAnchor: [16, 16] });
         let driverMarker = L.marker([0, 0], { icon: busIcon });
 
-        // Setup Cloud Server Free Message Pipeline
+        // Cloud Network Data Pipeline
         const pubnub = new PubNub({
             publishKey: 'pub-c-cb767677-fc2a-433b-8fc3-bdf702db6e05',
             subscribeKey: 'sub-c-4614ffdf-be7f-4f7f-8565-d2274b786884',
@@ -105,12 +105,14 @@
 
         pubnub.subscribe({ channels: ['digim-route-tracker'] });
 
-        // Listen for data coming from the other phone over the web
+        // LISTEN FOR INCOMING DRIVER DATA
         pubnub.addListener({
             message: function(event) {
                 if (currentRole === 'student') {
                     const data = event.message;
-                    document.getElementById('lbl-status').innerText = "Receiving live location...";
+                    document.getElementById('lbl-status').innerText = "Live Update Received! 🟢";
+                    
+                    // Trigger map graphics updates on student device instantly
                     updateMapGraphics(data.lat, data.lng);
                 }
             }
@@ -125,7 +127,7 @@
             
             if(role === 'driver') {
                 document.getElementById('action-btn').style.display = "block";
-                document.getElementById('lbl-status').innerText = "Ready to send live coordinates.";
+                document.getElementById('lbl-status').innerText = "Ready to transmit live coordinates.";
             } else {
                 document.getElementById('action-btn').style.display = "none";
                 document.getElementById('lbl-status').innerText = "Waiting for Driver to transmit route...";
@@ -137,7 +139,7 @@
         setRole('student');
         document.getElementById('lbl-status').innerText = "Connected to network pipeline.";
 
-        // --- DRIVER SIDE: TRACK HARDWARE GPS AND TRANSMIT TO INTERNET ---
+        // --- DRIVER BROADCAST ENGINE ---
         function toggleTracking() {
             if (!isTracking) {
                 if (!navigator.geolocation) return alert("GPS features unavailable.");
@@ -150,10 +152,10 @@
                     const lat = pos.coords.latitude;
                     const lng = pos.coords.longitude;
                     
-                    // Update own driver map graphics
+                    // Update own local driver screen UI
                     updateMapGraphics(lat, lng);
 
-                    // Broadcast coordinates into cloud network so Student device receives it instantly!
+                    // Push data out over the global network
                     pubnub.publish({
                         channel: 'digim-route-tracker',
                         message: { lat: lat, lng: lng }
@@ -172,20 +174,26 @@
             if(currentRole === 'driver') document.getElementById('lbl-status').innerText = "Idle";
         }
 
-        // --- CORE MAP ENGINE (RUNS DYNAMICALLY ON BOTH DEVICES NOW) ---
+        // --- CORE SYNCHRONIZED MAP GRAPHICS ENGINE ---
         function updateMapGraphics(lat, lng) {
+            // 1. Add bus marker if missing, then slide it into position
             if (!map.hasLayer(driverMarker)) driverMarker.addTo(map);
             driverMarker.setLatLng([lat, lng]);
 
+            // 2. Redraw the path polyline line vector
             if (routeLine) map.removeLayer(routeLine);
             routeLine = L.polyline([[lat, lng], [homeLat, homeLng]], {
-                color: '#d9534f', weight: 5, opacity: 0.85, dashArray: '10, 10', lineJoin: 'round'
+                color: '#d9534f', weight: 5, opacity: 0.9, dashArray: '10, 10', lineJoin: 'round'
             }).addTo(map);
 
-            // Automatically focus map layout to show both nodes nicely
-            const group = new L.featureGroup([L.marker([lat, lng]), L.marker([homeLat, homeLng])]);
-            map.fitBounds(group.getBounds().pad(0.3));
+            // 3. FIX: FORCE MAP CAMERA TO AUTO-FOCUS AND SHOW BOTH POINTS
+            const trackingGroup = new L.featureGroup([
+                L.marker([lat, lng]), 
+                L.marker([homeLat, homeLng])
+            ]);
+            map.fitBounds(trackingGroup.getBounds().pad(0.25));
 
+            // 4. Update panel indicators
             const distance = calculateDistance(lat, lng, homeLat, homeLng);
             document.getElementById('lbl-dist').innerText = `${Math.round(distance)} meters away`;
 
