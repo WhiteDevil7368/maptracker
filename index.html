@@ -39,13 +39,6 @@
         .value { font-weight: 700; color: #1e293b; font-family: system-ui, sans-serif; }
         .highlight-value { color: #1a73e8; font-size: 1.05rem; }
 
-        /* Mandatory Audio Activation Bar for Mobile Browsers */
-        .audio-lock-banner {
-            background: #ff9f1c; color: white; padding: 10px; border-radius: 8px;
-            text-align: center; font-weight: 700; font-size: 0.85rem; cursor: pointer;
-            box-shadow: 0 4px 12px rgba(255,159,28,0.3); display: block;
-        }
-
         /* Alarm Dashboard Dynamic Banner Alert */
         .alarm-banner {
             display: none; background: #e63946; color: white; border-radius: 8px; padding: 12px;
@@ -99,11 +92,6 @@
         <div class="role-selector">
             <button id="btn-student" class="role-btn active" onclick="setRole('student')">Student View</button>
             <button id="btn-driver" class="role-btn" onclick="setRole('driver')">Driver Panel</button>
-        </div>
-
-        <!-- Browser Interaction Unlock Banner -->
-        <div id="audio-lock" class="audio-lock-banner" onclick="unlockAudioSystem()">
-            🔔 TAP TO ACTIVATE ALARM RADAR
         </div>
 
         <div class="status-box">
@@ -197,7 +185,7 @@
             } catch (e) { console.error("Data stream parsing fault", e); }
         });
 
-        // --- EXPLICIT BROWSER SECURITY HANDSHAKE UNLOCK SYSTEM ---
+        // --- SILENT BACKGROUND INTERACTION UNLOCK HANDSHAKE ---
         function unlockAudioSystem() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -205,17 +193,19 @@
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
             }
-            // Hide the activation lock banner once unlocked successfully
-            document.getElementById('audio-lock').style.display = "none";
-            document.getElementById('lbl-status').innerText = "Audio Radar Fully Armed ✓";
-            document.getElementById('lbl-status').style.color = "#10b981";
+            if(currentRole === 'student') {
+                document.getElementById('lbl-status').innerText = "Audio Radar Armed 🔊";
+                document.getElementById('lbl-status').style.color = "#10b981";
+            }
         }
+
+        // Silently listen for the very first screen interaction to arm the system safely
+        window.addEventListener('click', unlockAudioSystem, { once: true });
+        window.addEventListener('touchstart', unlockAudioSystem, { once: true });
 
         function playContinuousAlarm() {
             if (isAlarmPlaying) return;
-            
-            // Fallback safety check if context hasn't initialized yet
-            if (!audioCtx) return;
+            if (!audioCtx) return; // Standard safety guard
             
             isAlarmPlaying = true;
             document.getElementById('alarm-banner').style.display = "block";
@@ -228,7 +218,6 @@
             const now = audioCtx.currentTime;
             alarmOscillator.frequency.setValueAtTime(800, now);
             
-            // Continuous aggressive emergency dual-frequency sweeping loop sequence
             let duration = 0.4;
             for (let i = 0; i < 300; i++) {
                 alarmOscillator.frequency.linearRampToValueAtTime(1200, now + (i * duration) + (duration / 2));
@@ -254,7 +243,7 @@
         }
 
         function setRole(role) {
-            unlockAudioSystem(); // Fallback trigger if switching tab options manually
+            unlockAudioSystem(); 
             currentRole = role;
             document.getElementById('btn-student').classList.toggle('active', role === 'student');
             document.getElementById('btn-driver').classList.toggle('active', role === 'driver');
@@ -265,12 +254,10 @@
 
             if (role === 'driver') {
                 document.getElementById('action-btn').style.display = "block";
-                document.getElementById('audio-lock').style.display = "none";
                 document.getElementById('lbl-status').innerText = "Ready to emit telemetry vectors.";
                 document.getElementById('lbl-status').style.color = "#64748b";
             } else {
                 document.getElementById('action-btn').style.display = "none";
-                document.getElementById('audio-lock').style.display = "block";
                 document.getElementById('lbl-status').innerText = "Listening for remote fleet stream...";
                 document.getElementById('lbl-status').style.color = "#1a73e8";
             }
@@ -371,7 +358,6 @@
                         
                     document.getElementById('lbl-eta').innerText = `${etaMinutes} mins`;
 
-                    // Check boundaries specifically for student layout hardware mapping targets
                     if (currentRole === 'student') {
                         if (roadDistanceMeters <= 50 && !alarmTriggeredToday) {
                             playContinuousAlarm();
