@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DIGIM - Live Proximity Trigger Demo</title>
+    <title>DIGIM - Live Tracking Route Demo</title>
     
     <!-- Leaflet.js Base Framework -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -33,8 +33,18 @@
 
         @keyframes flash { from { background: #dc3545; } to { background: #ffc107; color: black; } }
         @keyframes pulse { 0% { transform: scale(0.6); opacity: 0.5; } 70% { transform: scale(1.2); opacity: 0.9; } 100% { transform: scale(0.6); opacity: 0.5; } }
+        
+        /* Pulse for the Home Target Location */
         .home-pulse { background: #0056b3; border: 2px solid white; border-radius: 50%; animation: pulse 2.5s infinite ease-in-out; }
-        .driver-pulse { background: #e0a800; border: 2px solid white; border-radius: 50%; animation: pulse 1.5s infinite ease-in-out; }
+        
+        /* Styles for the Moving Bus Emoji Custom Icon Container */
+        .bus-emoji-container {
+            font-size: 28px;
+            text-align: center;
+            line-height: 1;
+            transition: all 0.3s ease-out; /* Makes the bus move smoothly between GPS jumps */
+            filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.4));
+        }
     </style>
 </head>
 <body>
@@ -61,7 +71,7 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Set up coordinates
+        // Set up target coordinates
         const homeLat = 17.694125;
         const homeLng = 83.171441;
         let currentRole = 'student';
@@ -69,22 +79,30 @@
         let watchId = null;
         let audioCtx = null;
         let alarmInterval = null;
+        
+        // Polyline Route Tracker Variables
+        let routeLine = null;
 
         // Initialize Map
         const map = L.map('map', { maxZoom: 19 }).setView([homeLat, homeLng], 17);
         map.zoomControl.setPosition('topright');
 
-        // Satellite Basemap Tiles
+        // Satellite Basemap Layers
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' }).addTo(map);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png', { pane: 'shadowPane' }).addTo(map);
 
-        // Standard Home Custom Pulse Marker
+        // Home Icon Setup
         const homeIcon = L.divIcon({ className: 'home-pulse', iconSize: [18, 18] });
         L.marker([homeLat, homeLng], { icon: homeIcon }).addTo(map).bindPopup("<b>Target Destination Home Point</b>").openPopup();
 
-        // Placeholder for Driver Pointer Marker
-        const driverIcon = L.divIcon({ className: 'driver-pulse', iconSize: [18, 18] });
-        let driverMarker = L.marker([0, 0], { icon: driverIcon });
+        // 🚌 Moving Bus Emoji Custom Marker Definition
+        const busIcon = L.divIcon({ 
+            html: '🚌', 
+            className: 'bus-emoji-container', 
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+        });
+        let driverMarker = L.marker([0, 0], { icon: busIcon });
 
         function setRole(role) {
             currentRole = role;
@@ -99,11 +117,11 @@
                 document.getElementById('action-btn').style.display = "none";
             }
         }
-        setRole('student'); // Default view state initialization
+        setRole('student');
 
         function toggleTracking() {
             if (!isTracking) {
-                if (!navigator.geolocation) return alert("GPS features unvailable on your browser.");
+                if (!navigator.geolocation) return alert("GPS features unavailable on your browser.");
                 
                 isTracking = true;
                 document.getElementById('action-btn').innerText = "STOP TRANSMITTING LOCATION";
@@ -125,31 +143,57 @@
             document.getElementById('action-btn').innerText = "START TRANSMITTING LOCATION";
             document.getElementById('action-btn').style.background = "#28a745";
             document.getElementById('lbl-status').innerText = "Idle";
+            
+            // Clean up lines when tracking ends
+            if (routeLine) {
+                map.removeLayer(routeLine);
+                routeLine = null;
+            }
         }
 
         function processGPSUpdate(position) {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
 
-            // Map standard projection positioning calculation
+            // 1. Draw/Update the Animated Bus Marker
             if (!map.hasLayer(driverMarker)) driverMarker.addTo(map);
             driverMarker.setLatLng([lat, lng]);
             
+            // Center viewport camera based on who is viewing
             if (currentRole === 'driver') {
                 map.setView([lat, lng], 18);
             }
 
-            // Haversine formula backend simulation locally inside the browser client
+            // 2. DYNAMIC ROAD MAP LINE TRACKING
+            // Remove previous path layer to draw the fresh real-time vector path line
+            if (routeLine) map.removeLayer(routeLine);
+
+            const pathCoordinates = [
+                [lat, lng],        // Starting Point: Driver Location
+                [homeLat, homeLng] // Endpoint: Target Home Node
+            ];
+
+            // Render highly visible crimson dash line directly between the nodes
+            routeLine = L.polyline(pathCoordinates, {
+                color: '#d9534f',
+                weight: 5,
+                opacity: 0.85,
+                dashArray: '10, 10', // Creates an tracking animated look
+                lineJoin: 'round'
+            }).addTo(map);
+
+            // Calculate distance remaining
             const distance = calculateDistance(lat, lng, homeLat, homeLng);
             document.getElementById('lbl-dist').innerText = `${Math.round(distance)} meters away`;
 
-            if (distance <= 50) { // Enters the 50-meter geofenced arrival trigger zone
+            // 3. Proximity Guard Check Trigger
+            if (distance <= 50) { 
                 triggerProximityAlarm();
             }
         }
 
         function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371e3; // Earth radius in meters
+            const R = 6371e3; 
             const phi1 = lat1 * Math.PI/180;
             const phi2 = lat2 * Math.PI/180;
             const deltaPhi = (lat2-lat1) * Math.PI/180;
@@ -159,24 +203,23 @@
         }
 
         function triggerProximityAlarm() {
-            if (alarmInterval) return; // Prevent duplicating concurrent alarm loops
+            if (alarmInterval) return; 
             
             document.getElementById('lbl-status').innerText = "ARRIVED AT HOME! ALARM ACTIVATED!";
             document.getElementById('lbl-status').style.color = "red";
             document.getElementById('alarm-btn').style.display = "block";
 
-            // Web Audio Synthesis (generates ringtone sound directly without downloading mp3 assets)
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             alarmInterval = setInterval(() => {
                 let osc = audioCtx.createOscillator();
                 let gain = audioCtx.createGain();
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(880, audioCtx.currentTime); // High pitch notification bell tone
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
                 gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
                 osc.connect(gain);
                 gain.connect(audioCtx.destination);
                 osc.start();
-                osc.stop(audioCtx.currentTime + 0.15); // Clear pulse sound window lengths
+                osc.stop(audioCtx.currentTime + 0.15); 
             }, 300);
         }
 
