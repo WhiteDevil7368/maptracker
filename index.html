@@ -143,7 +143,7 @@
         let alarmOscillator = null;
         let alarmGain = null;
         let isAlarmPlaying = false;
-        let alarmTriggeredToday = false; // Prevents re-triggering constantly on the same trip
+        let alarmTriggeredToday = false; 
 
         // Initialize Resilient Map Engine Layer
         const map = L.map('map', { zoomControl: false }).setView([schoolLat, schoolLng], 15);
@@ -273,7 +273,7 @@
                 document.getElementById('action-btn').classList.add('btn-active-broadcast');
                 document.getElementById('lbl-status').innerText = "Broadcasting global vectors...";
                 document.getElementById('lbl-status').style.color = "#ef4444";
-                alarmTriggeredToday = false; // Reset trigger state configuration array point
+                alarmTriggeredToday = false; 
 
                 watchId = navigator.geolocation.watchPosition((pos) => {
                     const lat = pos.coords.latitude;
@@ -341,7 +341,7 @@
                     }),
                     createMarker: function() { return null; },
                     lineOptions: {
-                        styles: [{ color: '#000000', opacity: 0.9, weight: 6 }] // Crisp Black professional street routing lines
+                        styles: [{ color: '#000000', opacity: 0.9, weight: 6 }] 
                     },
                     fitSelectedRoutes: false
                 }).addTo(map);
@@ -363,16 +363,18 @@
                         
                     document.getElementById('lbl-eta').innerText = `${etaMinutes} mins`;
 
-                    // PROXIMITY DETECTION ALARM CHECK: Trigger continuous siren if under 500 meters
-                    if (roadDistanceMeters <= 500 && !alarmTriggeredToday) {
-                        playContinuousAlarm();
-                        alarmTriggeredToday = true; 
-                    }
-                    
-                    // Reset threshold block layer boundary edge condition if vehicle pulls far away
-                    if (roadDistanceMeters > 700) {
-                        alarmTriggeredToday = false;
-                        silenceAlarm();
+                    // FIX: Strict Role Guard Check added so only the Student's screen can trigger the continuous audio alarm sound.
+                    if (currentRole === 'student') {
+                        if (roadDistanceMeters <= 500 && !alarmTriggeredToday) {
+                            playContinuousAlarm();
+                            alarmTriggeredToday = true; 
+                        }
+                        
+                        // Reset if vehicle pulls far away
+                        if (roadDistanceMeters > 700) {
+                            alarmTriggeredToday = false;
+                            silenceAlarm();
+                        }
                     }
                 });
             } else {
