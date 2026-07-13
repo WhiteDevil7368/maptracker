@@ -126,7 +126,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
 
     <script>
-        // Target Anchored School Coordinates
         const schoolLat = 17.694125;
         const schoolLng = 83.171441;
         
@@ -137,7 +136,7 @@
         let lastTimestamp = null;
         let lastPos = null;
 
-        // Alarm Audio System Hardware Variables
+        // Alarm Audio System Architecture Variables
         let audioCtx = null;
         let alarmOscillator = null;
         let alarmGain = null;
@@ -185,8 +184,9 @@
             } catch (e) { console.error("Data stream parsing fault", e); }
         });
 
-        // --- SILENT BACKGROUND INTERACTION UNLOCK HANDSHAKE ---
-        function unlockAudioSystem() {
+        // --- DEFERRED INTERACTION AUDIO UNLOCKER ---
+        // Absolutely zero AudioContext initialization occurs until this executes via real user interaction
+        function initializeAndUnlockAudio() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
@@ -199,13 +199,19 @@
             }
         }
 
-        // Silently listen for the very first screen interaction to arm the system safely
-        window.addEventListener('click', unlockAudioSystem, { once: true });
-        window.addEventListener('touchstart', unlockAudioSystem, { once: true });
+        // Catch the first natural user interaction anywhere on the viewport
+        window.addEventListener('click', initializeAndUnlockAudio, { once: true });
+        window.addEventListener('touchstart', initializeAndUnlockAudio, { once: true });
 
         function playContinuousAlarm() {
             if (isAlarmPlaying) return;
-            if (!audioCtx) return; // Standard safety guard
+            
+            // If the user hasn't tapped yet, force emergency creation right here
+            if (!audioCtx) {
+                initializeAndUnlockAudio();
+            }
+            // If still blocked by browser context limits, exit out safely
+            if (!audioCtx) return; 
             
             isAlarmPlaying = true;
             document.getElementById('alarm-banner').style.display = "block";
@@ -243,7 +249,7 @@
         }
 
         function setRole(role) {
-            unlockAudioSystem(); 
+            initializeAndUnlockAudio(); 
             currentRole = role;
             document.getElementById('btn-student').classList.toggle('active', role === 'student');
             document.getElementById('btn-driver').classList.toggle('active', role === 'driver');
@@ -264,7 +270,7 @@
         }
 
         function toggleTracking() {
-            unlockAudioSystem();
+            initializeAndUnlockAudio();
             if (!isTracking) {
                 if (!navigator.geolocation) return alert("System Hardware Geolocation missing.");
                 isTracking = true;
