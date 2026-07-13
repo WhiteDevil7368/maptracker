@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DIGIM - Live Proximity Trigger Demo</title>
+    
+    <!-- Leaflet.js Base Framework -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #f4f6f9; }
+        
+        #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+
+        .control-panel {
+            position: absolute; top: 20px; left: 20px; z-index: 1000;
+            background: rgba(255, 255, 255, 0.96); padding: 20px; border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3); width: 360px; display: flex; flex-direction: column; gap: 12px;
+        }
+
+        .role-selector { display: flex; gap: 10px; margin-bottom: 5px; }
+        .role-btn { flex: 1; padding: 10px; font-weight: bold; border: 2px solid #0056b3; border-radius: 6px; cursor: pointer; background: white; color: #0056b3; }
+        .role-btn.active { background: #0056b3; color: white; }
+
+        .btn { background: #28a745; color: white; border: none; padding: 12px; font-size: 1rem; font-weight: bold; border-radius: 8px; cursor: pointer; text-align: center; }
+        .btn-danger { background: #dc3545; display: none; animation: flash 1s infinite alternate; }
+
+        .status-box { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 12px; font-size: 0.9rem; line-height: 1.4; }
+        .label { font-weight: bold; color: #555; }
+        .value { font-weight: bold; color: #0056b3; font-family: monospace; }
+
+        @keyframes flash { from { background: #dc3545; } to { background: #ffc107; color: black; } }
+        @keyframes pulse { 0% { transform: scale(0.6); opacity: 0.5; } 70% { transform: scale(1.2); opacity: 0.9; } 100% { transform: scale(0.6); opacity: 0.5; } }
+        .home-pulse { background: #0056b3; border: 2px solid white; border-radius: 50%; animation: pulse 2.5s infinite ease-in-out; }
+        .driver-pulse { background: #e0a800; border: 2px solid white; border-radius: 50%; animation: pulse 1.5s infinite ease-in-out; }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div class="control-panel">
+        <h2>DIGIM Proximity Engine</h2>
+        
+        <div class="role-selector">
+            <button id="btn-student" class="role-btn active" onclick="setRole('student')">I am Student</button>
+            <button id="btn-driver" class="role-btn" onclick="setRole('driver')">I am Driver</button>
+        </div>
+
+        <div class="status-box">
+            <div><span class="label">Current Mode:</span> <span id="lbl-role" style="text-transform:uppercase; font-weight:bold; color:green;">Student View</span></div>
+            <div><span class="label">Driver Distance:</span> <span id="lbl-dist" class="value">Waiting for GPS...</span></div>
+            <div><span class="label">Status:</span> <span id="lbl-status" class="value">Idle</span></div>
+        </div>
+
+        <button id="action-btn" class="btn" onclick="toggleTracking()">START TRANSMITTING LOCATION</button>
+        <button id="alarm-btn" class="btn btn-danger" onclick="stopAlarm()">🔔 TURN OFF ALARM 🔔</button>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Set up coordinates
+        const homeLat = 17.694125;
+        const homeLng = 83.171441;
+        let currentRole = 'student';
+        let isTracking = false;
+        let watchId = null;
+        let audioCtx = null;
+        let alarmInterval = null;
+
+        // Initialize Map
+        const map = L.map('map', { maxZoom: 19 }).setView([homeLat, homeLng], 17);
+        map.zoomControl.setPosition('topright');
+
+        // Satellite Basemap Tiles
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' }).addTo(map);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png', { pane: 'shadowPane' }).addTo(map);
+
+        // Standard Home Custom Pulse Marker
+        const homeIcon = L.divIcon({ className: 'home-pulse', iconSize: [18, 18] });
+        L.marker([homeLat, homeLng], { icon: homeIcon }).addTo(map).bindPopup("<b>Target Destination Home Point</b>").openPopup();
+
+        // Placeholder for Driver Pointer Marker
+        const driverIcon = L.divIcon({ className: 'driver-pulse', iconSize: [18, 18] });
+        let driverMarker = L.marker([0, 0], { icon: driverIcon });
+
+        function setRole(role) {
+            currentRole = role;
+            document.getElementById('btn-student').classList.toggle('active', role === 'student');
+            document.getElementById('btn-driver').classList.toggle('active', role === 'driver');
+            document.getElementById('lbl-role').innerText = role === 'student' ? 'Student View' : 'Driver Broadcast';
+            document.getElementById('lbl-role').style.color = role === 'student' ? 'green' : '#e0a800';
+            
+            if(role === 'driver') {
+                document.getElementById('action-btn').style.display = "block";
+            } else {
+                document.getElementById('action-btn').style.display = "none";
+            }
+        }
+        setRole('student'); // Default view state initialization
+
+        function toggleTracking() {
+            if (!isTracking) {
+                if (!navigator.geolocation) return alert("GPS features unvailable on your browser.");
+                
+                isTracking = true;
+                document.getElementById('action-btn').innerText = "STOP TRANSMITTING LOCATION";
+                document.getElementById('action-btn').style.background = "#dc3545";
+                document.getElementById('lbl-status').innerText = "Broadcasting GPS data...";
+
+                watchId = navigator.geolocation.watchPosition(processGPSUpdate, handleGPSError, {
+                    enableHighAccuracy: true,
+                    maximumAge: 0
+                });
+            } else {
+                stopTracking();
+            }
+        }
+
+        function stopTracking() {
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+            isTracking = false;
+            document.getElementById('action-btn').innerText = "START TRANSMITTING LOCATION";
+            document.getElementById('action-btn').style.background = "#28a745";
+            document.getElementById('lbl-status').innerText = "Idle";
+        }
+
+        function processGPSUpdate(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+
+            // Map standard projection positioning calculation
+            if (!map.hasLayer(driverMarker)) driverMarker.addTo(map);
+            driverMarker.setLatLng([lat, lng]);
+            
+            if (currentRole === 'driver') {
+                map.setView([lat, lng], 18);
+            }
+
+            // Haversine formula backend simulation locally inside the browser client
+            const distance = calculateDistance(lat, lng, homeLat, homeLng);
+            document.getElementById('lbl-dist').innerText = `${Math.round(distance)} meters away`;
+
+            if (distance <= 50) { // Enters the 50-meter geofenced arrival trigger zone
+                triggerProximityAlarm();
+            }
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // Earth radius in meters
+            const phi1 = lat1 * Math.PI/180;
+            const phi2 = lat2 * Math.PI/180;
+            const deltaPhi = (lat2-lat1) * Math.PI/180;
+            const deltaLambda = (lon2-lon1) * Math.PI/180;
+            const a = Math.sin(deltaPhi/2) * Math.sin(deltaPhi/2) + Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda/2) * Math.sin(deltaLambda/2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+        }
+
+        function triggerProximityAlarm() {
+            if (alarmInterval) return; // Prevent duplicating concurrent alarm loops
+            
+            document.getElementById('lbl-status').innerText = "ARRIVED AT HOME! ALARM ACTIVATED!";
+            document.getElementById('lbl-status').style.color = "red";
+            document.getElementById('alarm-btn').style.display = "block";
+
+            // Web Audio Synthesis (generates ringtone sound directly without downloading mp3 assets)
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            alarmInterval = setInterval(() => {
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime); // High pitch notification bell tone
+                gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.15); // Clear pulse sound window lengths
+            }, 300);
+        }
+
+        function stopAlarm() {
+            if (alarmInterval) {
+                clearInterval(alarmInterval);
+                alarmInterval = null;
+            }
+            if (audioCtx) {
+                audioCtx.close();
+                audioCtx = null;
+            }
+            document.getElementById('alarm-btn').style.display = "none";
+            document.getElementById('lbl-status').innerText = "Alarm acknowledged and closed.";
+            document.getElementById('lbl-status').style.color = "black";
+            stopTracking();
+        }
+
+        function handleGPSError(err) {
+            document.getElementById('lbl-status').innerText = `GPS Error Code (${err.code})`;
+        }
+    </script>
+</body>
+</html>
