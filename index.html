@@ -82,9 +82,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
 
     <script>
-        // Anchored Coordinates for Madhav Kumar's Home Address
-        const homeLat = 26.580307;
-        const homeLng = 85.510105;
+        // Updated Anchored Coordinates for Student's Home Address
+        const homeLat = 17.694158;
+        const homeLng = 83.171462;
         
         let currentRole = 'student';
         let isTracking = false;
@@ -100,7 +100,7 @@
         let isAlarmPlaying = false;
         let alarmTriggeredToday = false; 
 
-        // Map Setup
+        // Map Setup centered on new home coordinates
         const map = L.map('map', { zoomControl: false }).setView([homeLat, homeLng], 15);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
 
@@ -128,7 +128,6 @@
             } catch (e) { console.error(e); }
         });
 
-        // Request Screen Wake Lock so app does not go dark while keeping track open
         async function requestWakeLock() {
             try {
                 if ('wakeLock' in navigator) {
@@ -255,7 +254,6 @@
             if (map.hasLayer(driverMarker)) map.removeLayer(driverMarker);
         }
 
-        // Service Worker registration logic
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
             .then(() => console.log("Service Worker Active"))
