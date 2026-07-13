@@ -58,8 +58,8 @@
             border: 2px solid #1a73e8; border-radius: 50%; animation: ripple 1.6s infinite ease-out; opacity: 0;
         }
 
-        /* Custom Academic School Landmark Icon */
-        .custom-school-icon {
+        /* Custom Academic School/Home Landmark Icon */
+        .custom-home-icon {
             background: #ff9f1c; border: 3px solid white; border-radius: 12px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3); width: 36px !important; height: 36px !important;
             display: flex; align-items: center; justify-content: center; color: white;
@@ -126,8 +126,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
 
     <script>
-        const schoolLat = 17.694125;
-        const schoolLng = 83.171441;
+        // Anchored Coordinates for Madhav Kumar's Home Address
+        const homeLat = 26.580307;
+        const homeLng = 85.510105;
         
         let currentRole = 'student';
         let isTracking = false;
@@ -143,8 +144,8 @@
         let isAlarmPlaying = false;
         let alarmTriggeredToday = false; 
 
-        // Initialize Resilient Map Engine Layer
-        const map = L.map('map', { zoomControl: false }).setView([schoolLat, schoolLng], 15);
+        // Initialize Resilient Map Engine Layer centered around Madhav's Home
+        const map = L.map('map', { zoomControl: false }).setView([homeLat, homeLng], 15);
         L.control.zoom({ position: 'topright' }).addTo(map);
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
@@ -152,10 +153,10 @@
             maxZoom: 20
         }).addTo(map);
 
-        const schoolIcon = L.divIcon({ html: '🏫', className: 'custom-school-icon', iconSize: [36, 36], iconAnchor: [18, 18] });
+        const homeIcon = L.divIcon({ html: '🏠', className: 'custom-home-icon', iconSize: [36, 36], iconAnchor: [18, 18] });
         const busIcon = L.divIcon({ html: '🚌', className: 'custom-bus-icon', iconSize: [36, 36], iconAnchor: [18, 18] });
 
-        L.marker([schoolLat, schoolLng], { icon: schoolIcon }).addTo(map).bindPopup("<b>School Landmark Base</b>");
+        L.marker([homeLat, homeLng], { icon: homeIcon }).addTo(map).bindPopup("<b>Madhav Kumar's Home</b>");
         let driverMarker = L.marker([0, 0], { icon: busIcon });
 
         const mqttClient = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
@@ -185,7 +186,6 @@
         });
 
         // --- DEFERRED INTERACTION AUDIO UNLOCKER ---
-        // Absolutely zero AudioContext initialization occurs until this executes via real user interaction
         function initializeAndUnlockAudio() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -199,18 +199,15 @@
             }
         }
 
-        // Catch the first natural user interaction anywhere on the viewport
         window.addEventListener('click', initializeAndUnlockAudio, { once: true });
         window.addEventListener('touchstart', initializeAndUnlockAudio, { once: true });
 
         function playContinuousAlarm() {
             if (isAlarmPlaying) return;
             
-            // If the user hasn't tapped yet, force emergency creation right here
             if (!audioCtx) {
                 initializeAndUnlockAudio();
             }
-            // If still blocked by browser context limits, exit out safely
             if (!audioCtx) return; 
             
             isAlarmPlaying = true;
@@ -336,7 +333,7 @@
 
             if (!routingControl) {
                 routingControl = L.Routing.control({
-                    waypoints: [ L.latLng(lat, lng), L.latLng(schoolLat, schoolLng) ],
+                    waypoints: [ L.latLng(lat, lng), L.latLng(homeLat, homeLng) ],
                     router: L.Routing.osrmv1({
                         serviceUrl: 'https://router.project-osrm.org/route/v1',
                         profile: 'car'
@@ -376,10 +373,10 @@
                     }
                 });
             } else {
-                routingControl.setWaypoints([ L.latLng(lat, lng), L.latLng(schoolLat, schoolLng) ]);
+                routingControl.setWaypoints([ L.latLng(lat, lng), L.latLng(homeLat, homeLng) ]);
             }
 
-            const viewBounds = L.latLngBounds([lat, lng], [schoolLat, schoolLng]);
+            const viewBounds = L.latLngBounds([lat, lng], [homeLat, homeLng]);
             map.fitBounds(viewBounds.pad(0.2), { animate: true, duration: 0.5 });
         }
 
