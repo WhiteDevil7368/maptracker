@@ -3,46 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DIGIM - Direct Live P2P Tracking</title>
+    <title>DIGIM - Professional Real-Time Smart School Tracker</title>
     
-    <!-- Leaflet.js Base Framework -->
+    <!-- Core Leaflet Mapping CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet Routing Engine Street Topography CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
 
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
-        html, body { width: 100%; height: 100%; overflow: hidden; background: #f4f6f9; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #eef2f7; }
         
         #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
 
+        /* Sleek Modern Glass-Morphism Control Dashboard Panel */
         .control-panel {
             position: absolute; top: 20px; left: 20px; z-index: 1000;
-            background: rgba(255, 255, 255, 0.96); padding: 20px; border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3); width: 340px; display: flex; flex-direction: column; gap: 12px;
+            background: rgba(255, 255, 255, 0.95); padding: 24px; border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15); width: 360px; 
+            display: flex; flex-direction: column; gap: 14px;
+            backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.6);
         }
 
-        .role-selector { display: flex; gap: 10px; margin-bottom: 5px; }
-        .role-btn { flex: 1; padding: 10px; font-weight: bold; border: 2px solid #0056b3; border-radius: 6px; cursor: pointer; background: white; color: #0056b3; }
-        .role-btn.active { background: #0056b3; color: white; }
+        .role-selector { display: flex; gap: 12px; }
+        .role-btn { flex: 1; padding: 12px; font-weight: 700; font-size: 0.9rem; border: 2px solid #1a73e8; border-radius: 8px; cursor: pointer; background: white; color: #1a73e8; transition: all 0.2s ease; }
+        .role-btn.active { background: #1a73e8; color: white; box-shadow: 0 4px 12px rgba(26,115,232,0.3); }
 
-        .btn { background: #28a745; color: white; border: none; padding: 12px; font-size: 1rem; font-weight: bold; border-radius: 8px; cursor: pointer; text-align: center; }
-        .btn-danger { background: #dc3545; display: none; animation: flash 1s infinite alternate; }
+        .btn { background: #2ec4b6; color: white; border: none; padding: 14px; font-size: 1rem; font-weight: 700; border-radius: 8px; cursor: pointer; text-align: center; box-shadow: 0 4px 12px rgba(46,196,182,0.2); transition: all 0.2s ease; }
+        .btn:hover { transform: translateY(-1px); }
+        .btn-active-broadcast { background: #e63946 !important; animation: pulse-broadcast 1.5s infinite alternate; }
 
-        .status-box { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 12px; font-size: 0.9rem; line-height: 1.4; }
-        .label { font-weight: bold; color: #555; }
-        .value { font-weight: bold; color: #0056b3; font-family: monospace; }
+        .status-box { background: #f8f9fa; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+        .metric-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem; }
+        .label { font-weight: 600; color: #64748b; }
+        .value { font-weight: 700; color: #1e293b; font-family: system-ui, sans-serif; }
+        .highlight-value { color: #1a73e8; font-size: 1.05rem; }
 
-        @keyframes flash { from { background: #dc3545; } to { background: #ffc107; color: black; } }
-        @keyframes pulse { 0% { transform: scale(0.6); opacity: 0.5; } 70% { transform: scale(1.2); opacity: 0.9; } 100% { transform: scale(0.6); opacity: 0.5; } }
-        
-        .home-pulse { background: #0056b3; border: 2px solid white; border-radius: 50%; animation: pulse 2.5s infinite ease-in-out; }
-        
-        .bus-emoji-container {
-            font-size: 32px;
-            text-align: center;
-            line-height: 1;
-            transition: transform 0.2s linear, left 0.2s linear, top 0.2s linear; 
-            filter: drop-shadow(0px 3px 6px rgba(0,0,0,0.4));
+        /* Custom Vector CSS Vehicle Pod Icon */
+        .custom-bus-icon {
+            background: #1a73e8; border: 3px solid white; border-radius: 50% 50% 40% 40%;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); width: 36px !important; height: 36px !important;
+            display: flex; align-items: center; justify-content: center; color: white;
+            font-size: 16px; font-weight: bold; transition: transform 0.2s ease;
         }
+        .custom-bus-icon::after {
+            content: ''; position: absolute; width: 44px; height: 44px;
+            border: 2px solid #1a73e8; border-radius: 50%; animation: ripple 1.6s infinite ease-out; opacity: 0;
+        }
+
+        /* Custom Academic School Landmark Icon */
+        .custom-school-icon {
+            background: #ff9f1c; border: 3px solid white; border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); width: 36px !important; height: 36px !important;
+            display: flex; align-items: center; justify-content: center; color: white;
+            font-size: 16px; font-weight: bold;
+        }
+
+        @keyframes ripple {
+            0% { transform: scale(0.6); opacity: 1; }
+            100% { transform: scale(1.3); opacity: 0; }
+        }
+        @keyframes pulse-broadcast {
+            from { box-shadow: 0 4px 12px rgba(230,57,70,0.3); }
+            to { box-shadow: 0 4px 20px rgba(230,57,70,0.7); background: #d90429; }
+        }
+
+        /* Hide Default Text Box Content generated by Leaflet Routing plug-ins */
+        .leaflet-routing-container { display: none !important; }
     </style>
 </head>
 <body>
@@ -50,170 +77,147 @@
     <div id="map"></div>
 
     <div class="control-panel">
-        <h2>DIGIM P2P Tracker</h2>
+        <h2 style="font-size: 1.4rem; color: #0f172a; font-weight: 800; letter-spacing: -0.5px;">DIGIM Transit Fleet</h2>
         
         <div class="role-selector">
-            <button id="btn-student" class="role-btn active" onclick="setRole('student')">I am Student</button>
-            <button id="btn-driver" class="role-btn" onclick="setRole('driver')">I am Driver</button>
+            <button id="btn-student" class="role-btn active" onclick="setRole('student')">Student View</button>
+            <button id="btn-driver" class="role-btn" onclick="setRole('driver')">Driver Panel</button>
         </div>
 
         <div class="status-box">
-            <div><span class="label">Mode:</span> <span id="lbl-role" style="text-transform:uppercase; font-weight:bold; color:green;">Student View</span></div>
-            <div><span class="label">Distance:</span> <span id="lbl-dist" class="value">Awaiting Direct Link...</span></div>
-            <div><span class="label">P2P Tunnel:</span> <span id="lbl-status" class="value" style="color: red;">Disconnected</span></div>
+            <div class="metric-row">
+                <span class="label">Distance Left:</span>
+                <span id="lbl-dist" class="value">Calculating...</span>
+            </div>
+            <div class="metric-row">
+                <span class="label">Time to Reach (ETA):</span>
+                <span id="lbl-eta" class="value highlight-value">-- mins</span>
+            </div>
+            <div class="metric-row">
+                <span class="label">Vehicle Speed:</span>
+                <span id="lbl-speed" class="value">0 km/h</span>
+            </div>
+            <div class="metric-row" style="margin-top: 4px; padding-top: 8px; border-top: 1px dashed #e2e8f0;">
+                <span class="label">Telemetry:</span>
+                <span id="lbl-status" class="value" style="color: #10b981;">Engine Standby</span>
+            </div>
         </div>
 
-        <button id="action-btn" class="btn" style="display:none;" onclick="toggleTracking()">START BROADCASTING ROUTE</button>
-        <button id="alarm-btn" class="btn btn-danger" onclick="stopAlarm()">🔔 TURN OFF ALARM 🔔</button>
+        <button id="action-btn" class="btn" style="display:none;" onclick="toggleTracking()">START LIVE BROADCAST</button>
     </div>
 
-    <!-- Leaflet Map Engine -->
+    <!-- Leaflet Engine Core Base Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <!-- PeerJS Framework for Direct Hardware-to-Hardware Streaming Connection -->
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <!-- OSRM Micro-Engine Routing Architecture Plugin -->
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    <!-- Ultra-Low Latency Messaging Engine (MQTT via HiveMQ Cluster Platform) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
 
     <script>
-        const homeLat = 17.694125;
-        const homeLng = 83.171441;
+        // Target Anchored School Coordinates
+        const schoolLat = 17.694125;
+        const schoolLng = 83.171441;
+        
         let currentRole = 'student';
         let isTracking = false;
         let watchId = null;
-        let audioCtx = null;
-        let alarmInterval = null;
-        let routeLine = null;
-        
-        // Peer Network Variables
-        let peer = null;
-        let p2pConnection = null;
-        // Hardcoded target session channel string name so both devices lock onto the exact same room link
-        const channelRoomId = "digim-route-session-channel-777"; 
+        let routingControl = null;
+        let lastTimestamp = null;
+        let lastPos = null;
 
-        // Initialize Map
-        const map = L.map('map', { maxZoom: 19 }).setView([homeLat, homeLng], 15);
-        map.zoomControl.setPosition('topright');
+        // Initialize Resilient Raster Vector Map Engine Layer
+        const map = L.map('map', { zoomControl: false }).setView([schoolLat, schoolLng], 15);
+        L.control.zoom({ position: 'topright' }).addTo(map);
 
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' }).addTo(map);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png', { pane: 'shadowPane' }).addTo(map);
+        // CartoDB High-Speed Light Vector Tiles
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+            maxZoom: 20
+        }).addTo(map);
 
-        const homeIcon = L.divIcon({ className: 'home-pulse', iconSize: [18, 18] });
-        L.marker([homeLat, homeLng], { icon: homeIcon }).addTo(map).bindPopup("<b>Student Home Point</b>").openPopup();
+        // Modern Clean Vector CSS Markers Configuration
+        const schoolIcon = L.divIcon({ html: '🏫', className: 'custom-school-icon', iconSize: [36, 36], iconAnchor: [18, 18] });
+        const busIcon = L.divIcon({ html: '🚌', className: 'custom-bus-icon', iconSize: [36, 36], iconAnchor: [18, 18] });
 
-        const busIcon = L.divIcon({ html: '🚌', className: 'bus-emoji-container', iconSize: [32, 32], iconAnchor: [16, 16] });
+        L.marker([schoolLat, schoolLng], { icon: schoolIcon }).addTo(map).bindPopup("<b>School Landmark Base</b>");
         let driverMarker = L.marker([0, 0], { icon: busIcon });
 
-        // Initialize P2P Communication Link Engine
-        function initP2PNetwork() {
-            if (peer) peer.destroy();
+        // Instantiate Sub-Second Live Data Pipeline Engine (Public HiveMQ Broker Cluster)
+        const mqttClient = mqtt.connect('wss://broker.hivemq.com:8000/mqtt');
+        const telemetryTopic = "digim/fleet/route/777";
 
-            if (currentRole === 'driver') {
-                // The driver initiates a generic client node
-                peer = new Peer();
-                
-                peer.on('open', (id) => {
-                    document.getElementById('lbl-status').innerText = "Connecting to Student...";
-                    document.getElementById('lbl-status').style.color = "orange";
-                    
-                    // Attempt to punch connection tunnel straight to student listener channel
-                    connectToStudent();
-                });
+        mqttClient.on('connect', () => {
+            document.getElementById('lbl-status').innerText = "Telemetry Network Connected";
+            mqttClient.subscribe(telemetryTopic);
+        });
 
-                peer.on('error', (err) => {
-                    // If student isn't ready yet, keep retrying silently every 3 seconds
-                    setTimeout(connectToStudent, 3000);
-                });
-            } else {
-                // The Student registers directly onto the static Room ID channel listening node
-                peer = new Peer(channelRoomId);
-                
-                peer.on('open', (id) => {
-                    document.getElementById('lbl-status').innerText = "Listening for Driver Direct link... 🟢";
-                    document.getElementById('lbl-status').style.color = "green";
-                });
-
-                peer.on('connection', (conn) => {
-                    p2pConnection = conn;
-                    setupReceiverEvents();
-                });
+        // Instant Sub-Second Incoming Stream Signal Handler
+        mqttClient.on('message', (topic, message) => {
+            if (currentRole === 'student') {
+                try {
+                    const data = JSON.parse(message.toString());
+                    document.getElementById('lbl-status').innerText = "Live Transmission Sync 🟢";
+                    processTelemetryUpdate(data.lat, data.lng, data.speed);
+                } catch (e) { console.error("Data stream parsing fault", e); }
             }
-        }
-
-        function connectToStudent() {
-            if (currentRole !== 'driver' || !peer) return;
-            
-            p2pConnection = peer.connect(channelRoomId, { reliable: true });
-            
-            p2pConnection.on('open', () => {
-                document.getElementById('lbl-status').innerText = "Direct Pipeline Active! ⚡";
-                document.getElementById('lbl-status').style.color = "green";
-            });
-        }
-
-        function setupReceiverEvents() {
-            p2pConnection.on('open', () => {
-                document.getElementById('lbl-status').innerText = "Driver Device Linked! 🟢";
-                document.getElementById('lbl-status').style.color = "green";
-            });
-
-            p2pConnection.on('data', (data) => {
-                if (currentRole === 'student') {
-                    document.getElementById('lbl-status').innerText = "Direct Stream Updating... 🔥";
-                    updateMapGraphics(data.lat, data.lng);
-                }
-            });
-
-            p2pConnection.on('close', () => {
-                document.getElementById('lbl-status').innerText = "Driver Disconnected.";
-                document.getElementById('lbl-status').style.color = "red";
-            });
-        }
+        });
 
         function setRole(role) {
             currentRole = role;
             document.getElementById('btn-student').classList.toggle('active', role === 'student');
             document.getElementById('btn-driver').classList.toggle('active', role === 'driver');
-            document.getElementById('lbl-role').innerText = role === 'student' ? 'Student View' : 'Driver Broadcast';
-            document.getElementById('lbl-role').style.color = role === 'student' ? 'green' : '#e0a800';
             
             stopTracking();
-            if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
-            if (map.hasLayer(driverMarker)) map.removeLayer(driverMarker);
+            clearRoutingLayers();
 
-            if(role === 'driver') {
+            if (role === 'driver') {
                 document.getElementById('action-btn').style.display = "block";
+                document.getElementById('lbl-status').innerText = "Ready to emit telemetry vectors.";
             } else {
                 document.getElementById('action-btn').style.display = "none";
+                document.getElementById('lbl-status').innerText = "Listening for remote fleet stream...";
             }
-            
-            // Reconfigure the hardware routing sockets
-            initP2PNetwork();
         }
 
-        // Initialize setup
-        setRole('student');
-
-        // --- DRIVER CORE GPS EMITTER ---
+        // --- CORE TELEMETRY BROADCAST PIPELINE ---
         function toggleTracking() {
             if (!isTracking) {
-                if (!navigator.geolocation) return alert("GPS features unavailable.");
+                if (!navigator.geolocation) return alert("System Hardware Geolocation missing.");
                 isTracking = true;
-                document.getElementById('action-btn').innerText = "STOP BROADCASTING";
-                document.getElementById('action-btn').style.background = "#dc3545";
+                document.getElementById('action-btn').innerText = "HALT BROADCAST PIPELINE";
+                document.getElementById('action-btn').classList.add('btn-active-broadcast');
+                document.getElementById('lbl-status').innerText = "Broadcasting global vectors...";
 
                 watchId = navigator.geolocation.watchPosition((pos) => {
                     const lat = pos.coords.latitude;
                     const lng = pos.coords.longitude;
                     
-                    updateMapGraphics(lat, lng);
-
-                    // Shoot the data payload straight through the encrypted WebRTC data pipeline
-                    if (p2pConnection && p2pConnection.open) {
-                        p2pConnection.send({ lat: lat, lng: lng });
-                    } else {
-                        // If connection lost, try setting up tunnel again
-                        connectToStudent();
+                    // High-accuracy velocity computation engine fallback logic
+                    let calculatedSpeed = pos.coords.speed ? (pos.coords.speed * 3.6) : 0; 
+                    const now = performance.now();
+                    
+                    if (!pos.coords.speed && lastPos && lastTimestamp) {
+                        const distanceMoved = calculateHaversine(lastPos.lat, lastPos.lng, lat, lng);
+                        const timeElapsedSeconds = (now - lastTimestamp) / 1000;
+                        if (timeElapsedSeconds > 0) {
+                            calculatedSpeed = (distanceMoved / timeElapsedSeconds) * 3.6;
+                        }
                     }
-                }, handleGPSError, { enableHighAccuracy: true, maximumAge: 0 });
+                    
+                    lastPos = { lat, lng };
+                    lastTimestamp = now;
+                    if(calculatedSpeed > 100) calculatedSpeed = 45; // Sanitization clamp layer
+
+                    // 1. Immediately render locally on the driver screen layout
+                    processTelemetryUpdate(lat, lng, calculatedSpeed);
+
+                    // 2. Transmit through the WebSocket layer instantly (Sub-Second delivery)
+                    mqttClient.publish(telemetryTopic, JSON.stringify({
+                        lat: lat, lng: lng, speed: calculatedSpeed
+                    }), { qos: 0 });
+
+                }, (err) => { document.getElementById('lbl-status').innerText = `GPS Error Code (${err.code})`; }, 
+                { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
             } else {
                 stopTracking();
             }
@@ -222,68 +226,79 @@
         function stopTracking() {
             if (watchId) navigator.geolocation.clearWatch(watchId);
             isTracking = false;
-            document.getElementById('action-btn').innerText = "START BROADCASTING ROUTE";
-            document.getElementById('action-btn').style.background = "#28a745";
+            document.getElementById('action-btn').innerText = "START LIVE BROADCAST";
+            document.getElementById('action-btn').classList.remove('btn-active-broadcast');
+            if(currentRole === 'driver') document.getElementById('lbl-status').innerText = "Engine Standby";
         }
 
-        // --- CORE SYNCHRONIZED MAP GRAPHICS ENGINE ---
-        function updateMapGraphics(lat, lng) {
+        // --- SUB-SECOND ROAD INTERSECTION ROUTING & TELEMETRY DRAW ENGINE ---
+        function processTelemetryUpdate(lat, lng, speed) {
+            // Render vehicle position array vector point
             if (!map.hasLayer(driverMarker)) driverMarker.addTo(map);
             driverMarker.setLatLng([lat, lng]);
 
-            if (routeLine) map.removeLayer(routeLine);
-            routeLine = L.polyline([[lat, lng], [homeLat, homeLng]], {
-                color: '#d9534f', weight: 5, opacity: 0.9, dashArray: '10, 10', lineJoin: 'round'
-            }).addTo(map);
+            document.getElementById('lbl-speed').innerText = `${Math.round(speed)} km/h`;
 
-            // Auto-focus view to frame both markers beautifully
-            const trackingGroup = new L.featureGroup([
-                L.marker([lat, lng]), 
-                L.marker([homeLat, homeLng])
-            ]);
-            map.fitBounds(trackingGroup.getBounds().pad(0.3));
+            // Instantiate/Reconstruct the OpenStreetMap Topographical Engine Control instance
+            if (!routingControl) {
+                routingControl = L.Routing.control({
+                    waypoints: [ L.latLng(lat, lng), L.latLng(schoolLat, schoolLng) ],
+                    router: L.Routing.osrmv1({
+                        serviceUrl: 'https://router.project-osrm.org/route/v1',
+                        profile: 'car'
+                    }),
+                    createMarker: function() { return null; }, // Suppress duplicate framework icon nodes
+                    lineOptions: {
+                        styles: [{ color: '#1a73e8', opacity: 0.85, weight: 6 }] // Clean professional Royal Blue path
+                    },
+                    fitSelectedRoutes: false
+                }).addTo(map);
 
-            const distance = calculateDistance(lat, lng, homeLat, homeLng);
-            document.getElementById('lbl-dist').innerText = `${Math.round(distance)} meters away`;
+                // Event listener to extract calculated road distance and dynamically compute ETA
+                routingControl.on('routesfound', function(e) {
+                    const routes = e.routes;
+                    const summary = routes[0].summary;
+                    
+                    const roadDistanceMeters = summary.totalDistance; 
+                    
+                    // Speed Calculation Engine ($ETA = \frac{\text{Distance}}{\text{Velocity}}$)
+                    let transitSpeedKmH = speed > 5 ? speed : 30; // Standard urban cluster transit speed assumption baseline
+                    const transitSpeedMPS = transitSpeedKmH / 3.6;
+                    let etaSeconds = roadDistanceMeters / transitSpeedMPS;
+                    let etaMinutes = Math.ceil(etaSeconds / 60);
 
-            if (distance <= 50) { 
-                triggerProximityAlarm();
+                    // Display metrics text
+                    document.getElementById('lbl-dist').innerText = roadDistanceMeters > 1000 
+                        ? `${(roadDistanceMeters / 1000).toFixed(2)} km` 
+                        : `${Math.round(roadDistanceMeters)} meters`;
+                        
+                    document.getElementById('lbl-eta').innerText = `${etaMinutes} mins`;
+                });
+            } else {
+                // Instantly inject the updated coordinates array vector to update the path alignment
+                routingControl.setWaypoints([ L.latLng(lat, lng), L.latLng(schoolLat, schoolLng) ]);
             }
+
+            // Keep viewport centered on active spatial bounding frames smoothly
+            const viewBounds = L.latLngBounds([lat, lng], [schoolLat, schoolLng]);
+            map.fitBounds(viewBounds.pad(0.2), { animate: true, duration: 0.5 });
         }
 
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371e3; 
-            const phi1 = lat1 * Math.PI/180; const phi2 = lat2 * Math.PI/180;
-            const deltaPhi = (lat2-lat1) * Math.PI/180; const deltaLambda = (lon2-lon1) * Math.PI/180;
-            const a = Math.sin(deltaPhi/2) * Math.sin(deltaPhi/2) + Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda/2) * Math.sin(deltaLambda/2);
-            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+        function clearRoutingLayers() {
+            if (routingControl) {
+                map.removeControl(routingControl);
+                routingControl = null;
+            }
+            if (map.hasLayer(driverMarker)) map.removeLayer(driverMarker);
         }
 
-        function triggerProximityAlarm() {
-            if (alarmInterval) return; 
-            document.getElementById('lbl-status').innerText = "BUS ARRIVED! ALARM ACTIVE!";
-            document.getElementById('lbl-status').style.color = "red";
-            document.getElementById('alarm-btn').style.display = "block";
-
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            alarmInterval = setInterval(() => {
-                let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
-                osc.type = 'sine'; osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
-                gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
-                osc.connect(gain); gain.connect(audioCtx.destination);
-                osc.start(); osc.stop(audioCtx.currentTime + 0.15); 
-            }, 300);
+        function calculateHaversine(lat1, lon1, lat2, lon2) {
+            const R = 6371000; 
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
         }
-
-        function stopAlarm() {
-            if (alarmInterval) { clearInterval(alarmInterval); alarmInterval = null; }
-            if (audioCtx) { audioCtx.close(); audioCtx = null; }
-            document.getElementById('alarm-btn').style.display = "none";
-            document.getElementById('lbl-status').style.color = "black";
-            setRole(currentRole);
-        }
-
-        function handleGPSError(err) { document.getElementById('lbl-status').innerText = `GPS Error (${err.code})`; }
     </script>
 </body>
 </html>
