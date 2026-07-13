@@ -99,7 +99,7 @@
             </div>
             <div class="metric-row" style="margin-top: 4px; padding-top: 8px; border-top: 1px dashed #e2e8f0;">
                 <span class="label">Telemetry:</span>
-                <span id="lbl-status" class="value" style="color: #10b981;">Engine Standby</span>
+                <span id="lbl-status" class="value" style="color: #64748b;">Initializing Network...</span>
             </div>
         </div>
 
@@ -125,11 +125,11 @@
         let lastTimestamp = null;
         let lastPos = null;
 
-        // Initialize Resilient Raster Vector Map Engine Layer
+        // Initialize Resilient Map Engine Layer
         const map = L.map('map', { zoomControl: false }).setView([schoolLat, schoolLng], 15);
         L.control.zoom({ position: 'topright' }).addTo(map);
 
-        // CartoDB High-Speed Light Vector Tiles
+        // CartoDB High-Speed Light Vector Tiles (Guarantees zero grey tiles)
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
             maxZoom: 20
@@ -142,24 +142,33 @@
         L.marker([schoolLat, schoolLng], { icon: schoolIcon }).addTo(map).bindPopup("<b>School Landmark Base</b>");
         let driverMarker = L.marker([0, 0], { icon: busIcon });
 
-        // Instantiate Sub-Second Live Data Pipeline Engine (Public HiveMQ Broker Cluster)
-        const mqttClient = mqtt.connect('wss://broker.hivemq.com:8000/mqtt');
+        // FIX: Switched to wss:// (Secure WebSockets) on Port 8884 to stop browser security blocks
+        const mqttClient = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
         const telemetryTopic = "digim/fleet/route/777";
 
         mqttClient.on('connect', () => {
             document.getElementById('lbl-status').innerText = "Telemetry Network Connected";
+            document.getElementById('lbl-status').style.color = "#10b981";
             mqttClient.subscribe(telemetryTopic);
+        });
+
+        mqttClient.on('error', (err) => {
+            console.error("MQTT Connection Fault:", err);
+            document.getElementById('lbl-status').innerText = "Network Retry...";
+            document.getElementById('lbl-status').style.color = "#ef4444";
         });
 
         // Instant Sub-Second Incoming Stream Signal Handler
         mqttClient.on('message', (topic, message) => {
-            if (currentRole === 'student') {
-                try {
-                    const data = JSON.parse(message.toString());
+            // FIX: Keep listening and parsing incoming data globally, but only draw if student view is active
+            try {
+                const data = JSON.parse(message.toString());
+                if (currentRole === 'student') {
                     document.getElementById('lbl-status').innerText = "Live Transmission Sync 🟢";
+                    document.getElementById('lbl-status').style.color = "#10b981";
                     processTelemetryUpdate(data.lat, data.lng, data.speed);
-                } catch (e) { console.error("Data stream parsing fault", e); }
-            }
+                }
+            } catch (e) { console.error("Data stream parsing fault", e); }
         });
 
         function setRole(role) {
@@ -173,9 +182,11 @@
             if (role === 'driver') {
                 document.getElementById('action-btn').style.display = "block";
                 document.getElementById('lbl-status').innerText = "Ready to emit telemetry vectors.";
+                document.getElementById('lbl-status').style.color = "#64748b";
             } else {
                 document.getElementById('action-btn').style.display = "none";
                 document.getElementById('lbl-status').innerText = "Listening for remote fleet stream...";
+                document.getElementById('lbl-status').style.color = "#1a73e8";
             }
         }
 
@@ -187,6 +198,7 @@
                 document.getElementById('action-btn').innerText = "HALT BROADCAST PIPELINE";
                 document.getElementById('action-btn').classList.add('btn-active-broadcast');
                 document.getElementById('lbl-status').innerText = "Broadcasting global vectors...";
+                document.getElementById('lbl-status').style.color = "#ef4444";
 
                 watchId = navigator.geolocation.watchPosition((pos) => {
                     const lat = pos.coords.latitude;
@@ -212,11 +224,16 @@
                     processTelemetryUpdate(lat, lng, calculatedSpeed);
 
                     // 2. Transmit through the WebSocket layer instantly (Sub-Second delivery)
-                    mqttClient.publish(telemetryTopic, JSON.stringify({
-                        lat: lat, lng: lng, speed: calculatedSpeed
-                    }), { qos: 0 });
+                    if (mqttClient.connected) {
+                        mqttClient.publish(telemetryTopic, JSON.stringify({
+                            lat: lat, lng: lng, speed: calculatedSpeed
+                        }), { qos: 0 });
+                    }
 
-                }, (err) => { document.getElementById('lbl-status').innerText = `GPS Error Code (${err.code})`; }, 
+                }, (err) => { 
+                    document.getElementById('lbl-status').innerText = `GPS Error Code (${err.code})`; 
+                    document.getElementById('lbl-status').style.color = "#ef4444";
+                }, 
                 { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
             } else {
                 stopTracking();
@@ -228,7 +245,10 @@
             isTracking = false;
             document.getElementById('action-btn').innerText = "START LIVE BROADCAST";
             document.getElementById('action-btn').classList.remove('btn-active-broadcast');
-            if(currentRole === 'driver') document.getElementById('lbl-status').innerText = "Engine Standby";
+            if(currentRole === 'driver') {
+                document.getElementById('lbl-status').innerText = "Engine Standby";
+                document.getElementById('lbl-status').style.color = "#64748b";
+            }
         }
 
         // --- SUB-SECOND ROAD INTERSECTION ROUTING & TELEMETRY DRAW ENGINE ---
@@ -249,7 +269,7 @@
                     }),
                     createMarker: function() { return null; }, // Suppress duplicate framework icon nodes
                     lineOptions: {
-                        styles: [{ color: '#1a73e8', opacity: 0.85, weight: 6 }] // Clean professional Royal Blue path
+                        styles: [{ color: '#000000', opacity: 0.9, weight: 6 }] // Black line follows roads
                     },
                     fitSelectedRoutes: false
                 }).addTo(map);
@@ -261,7 +281,7 @@
                     
                     const roadDistanceMeters = summary.totalDistance; 
                     
-                    // Speed Calculation Engine ($ETA = \frac{\text{Distance}}{\text{Velocity}}$)
+                    // Speed Calculation Engine
                     let transitSpeedKmH = speed > 5 ? speed : 30; // Standard urban cluster transit speed assumption baseline
                     const transitSpeedMPS = transitSpeedKmH / 3.6;
                     let etaSeconds = roadDistanceMeters / transitSpeedMPS;
@@ -279,7 +299,7 @@
                 routingControl.setWaypoints([ L.latLng(lat, lng), L.latLng(schoolLat, schoolLng) ]);
             }
 
-            // Keep viewport centered on active spatial bounding frames smoothly
+            // Keep viewport centered smoothly
             const viewBounds = L.latLngBounds([lat, lng], [schoolLat, schoolLng]);
             map.fitBounds(viewBounds.pad(0.2), { animate: true, duration: 0.5 });
         }
